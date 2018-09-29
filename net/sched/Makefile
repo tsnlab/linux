@@ -52,6 +52,7 @@ obj-$(CONFIG_NET_SCH_FQ)	+= sch_fq.o
 obj-$(CONFIG_NET_SCH_HHF)	+= sch_hhf.o
 obj-$(CONFIG_NET_SCH_PIE)	+= sch_pie.o
 obj-$(CONFIG_NET_SCH_CBS)	+= sch_cbs.o
+obj-$(CONFIG_NET_SCH_TAPRIO)	+= sch_taprio.o
 obj-$(CONFIG_NET_SCH_TEGRA)	+= sch_tegra.o
 
 obj-$(CONFIG_NET_CLS_U32)	+= cls_u32.o

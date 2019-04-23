@@ -534,7 +534,7 @@ static int taprio_parse_mqprio_opt(struct net_device *dev,
 	return 0;
 }
 
-static ktime_t taprio_get_start_time(struct Qdisc *sch)
+static int taprio_get_start_time(struct Qdisc *sch, ktime_t *start)
 {
 	struct taprio_sched *q = qdisc_priv(sch);
 	struct sched_entry *entry;
@@ -542,27 +542,33 @@ static ktime_t taprio_get_start_time(struct Qdisc *sch)
 	s64 n;
 
 	base = ns_to_ktime(q->base_time);
-	cycle.tv64 = 0;
+	now = q->get_time();
+
+	if (ktime_after(base, now)) {
+		*start = base;
+		return 0;
+	}
 
 	/* Calculate the cycle_time, by summing all the intervals.
 	 */
+	cycle.tv64 = 0;
 	list_for_each_entry(entry, &q->entries, list)
 		cycle = ktime_add_ns(cycle, entry->interval);
 
-	if (cycle.tv64 == 0)
-		return base;
-
-	now = q->get_time();
-
-	if (ktime_after(base, now))
-		return base;
+	/* The qdisc is expected to have at least one sched_entry.  Moreover,
+	 * any entry must have 'interval' > 0. Thus if the cycle time is zero,
+	 * something went really wrong. In that case, we should warn about this
+	 * inconsistent state and return error.
+	 */
+	if (WARN_ON(!cycle.tv64))
+		return -EFAULT;
 
 	/* Schedule the start time for the beginning of the next
 	 * cycle.
 	 */
 	n = div64_s64(ktime_sub_ns(now, base.tv64).tv64, cycle.tv64);
-
-	return ktime_add_ns(base, (n + 1) * cycle.tv64);
+	*start = ktime_add_ns(base, (n + 1) * cycle.tv64);
+	return 0;
 }
 
 static void taprio_start_sched(struct Qdisc *sch, ktime_t start)
@@ -709,9 +715,12 @@ static int taprio_change(struct Qdisc *sch, struct nlattr *opt)
 	}
 
 	taprio_set_picos_per_byte(dev, q);
-	start = taprio_get_start_time(sch);
-	if (start.tv64 == 0)
-		return 0;
+
+	err = taprio_get_start_time(sch, &start);
+	if (err < 0) {
+		// NL_SET_ERR_MSG(extack, "Internal error: failed get start time");
+		return err;
+	}
 
 	taprio_start_sched(sch, start);
 

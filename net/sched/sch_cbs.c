@@ -190,7 +190,7 @@ static int cbs_change(struct Qdisc *sch, struct nlattr *opt)
 	s64 link_speed;
 	int err;
 
-	err = nla_parse_nested(tb, TCA_CBS_MAX, opt, cbs_policy, NULL);
+	err = nla_parse_nested(tb, TCA_CBS_MAX, opt, cbs_policy);
 	if (err < 0)
 		return err;
 

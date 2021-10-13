@@ -269,8 +269,7 @@ static const struct nla_policy taprio_policy[TCA_TAPRIO_ATTR_MAX + 1] = {
 	[TCA_TAPRIO_ATTR_SCHED_CLOCKID]        = { .type = NLA_S32 },
 };
 
-static int fill_sched_entry(struct nlattr **tb, struct sched_entry *entry,
-			    struct netlink_ext_ack *extack)
+static int fill_sched_entry(struct nlattr **tb, struct sched_entry *entry)
 {
 	u32 interval = 0;
 
@@ -287,7 +286,7 @@ static int fill_sched_entry(struct nlattr **tb, struct sched_entry *entry,
 			tb[TCA_TAPRIO_SCHED_ENTRY_INTERVAL]);
 
 	if (interval == 0) {
-		NL_SET_ERR_MSG(extack, "Invalid interval for schedule entry");
+		// NL_SET_ERR_MSG(extack, "Invalid interval for schedule entry");
 		return -EINVAL;
 	}
 
@@ -297,27 +296,26 @@ static int fill_sched_entry(struct nlattr **tb, struct sched_entry *entry,
 }
 
 static int parse_sched_entry(struct nlattr *n, struct sched_entry *entry,
-			     int index, struct netlink_ext_ack *extack)
+			     int index)
 {
 	struct nlattr *tb[TCA_TAPRIO_SCHED_ENTRY_MAX + 1] = { };
 	int err;
 
 	err = nla_parse_nested(tb, TCA_TAPRIO_SCHED_ENTRY_MAX, n,
-			       entry_policy, NULL);
+			       entry_policy);
 	if (err < 0) {
-		NL_SET_ERR_MSG(extack, "Could not parse nested entry");
+		// NL_SET_ERR_MSG(extack, "Could not parse nested entry");
 		return -EINVAL;
 	}
 
 	entry->index = index;
 
-	return fill_sched_entry(tb, entry, extack);
+	return fill_sched_entry(tb, entry);
 }
 
 /* Returns the number of entries in case of success */
 static int parse_sched_single_entry(struct nlattr *n,
-				    struct taprio_sched *q,
-				    struct netlink_ext_ack *extack)
+				    struct taprio_sched *q)
 {
 	struct nlattr *tb_entry[TCA_TAPRIO_SCHED_ENTRY_MAX + 1] = { };
 	struct nlattr *tb_list[TCA_TAPRIO_SCHED_MAX + 1] = { };
@@ -327,33 +325,33 @@ static int parse_sched_single_entry(struct nlattr *n,
 	int err;
 
 	err = nla_parse_nested(tb_list, TCA_TAPRIO_SCHED_MAX,
-			       n, entry_list_policy, NULL);
+			       n, entry_list_policy);
 	if (err < 0) {
-		NL_SET_ERR_MSG(extack, "Could not parse nested entry");
+		// NL_SET_ERR_MSG(extack, "Could not parse nested entry");
 		return -EINVAL;
 	}
 
 	if (!tb_list[TCA_TAPRIO_SCHED_ENTRY]) {
-		NL_SET_ERR_MSG(extack, "Single-entry must include an entry");
+		// NL_SET_ERR_MSG(extack, "Single-entry must include an entry");
 		return -EINVAL;
 	}
 
 	err = nla_parse_nested(tb_entry, TCA_TAPRIO_SCHED_ENTRY_MAX,
 			       tb_list[TCA_TAPRIO_SCHED_ENTRY],
-			       entry_policy, NULL);
+			       entry_policy);
 	if (err < 0) {
-		NL_SET_ERR_MSG(extack, "Could not parse nested entry");
+		// NL_SET_ERR_MSG(extack, "Could not parse nested entry");
 		return -EINVAL;
 	}
 
 	if (!tb_entry[TCA_TAPRIO_SCHED_ENTRY_INDEX]) {
-		NL_SET_ERR_MSG(extack, "Entry must specify an index\n");
+		// NL_SET_ERR_MSG(extack, "Entry must specify an index\n");
 		return -EINVAL;
 	}
 
 	index = nla_get_u32(tb_entry[TCA_TAPRIO_SCHED_ENTRY_INDEX]);
 	if (index >= q->num_entries) {
-		NL_SET_ERR_MSG(extack, "Index for single entry exceeds number of entries in schedule");
+		// NL_SET_ERR_MSG(extack, "Index for single entry exceeds number of entries in schedule");
 		return -EINVAL;
 	}
 
@@ -365,11 +363,11 @@ static int parse_sched_single_entry(struct nlattr *n,
 	}
 
 	if (!found) {
-		NL_SET_ERR_MSG(extack, "Could not find entry");
+		// NL_SET_ERR_MSG(extack, "Could not find entry");
 		return -ENOENT;
 	}
 
-	err = fill_sched_entry(tb_entry, entry, extack);
+	err = fill_sched_entry(tb_entry, entry);
 	if (err < 0)
 		return err;
 
@@ -377,8 +375,7 @@ static int parse_sched_single_entry(struct nlattr *n,
 }
 
 static int parse_sched_list(struct nlattr *list,
-			    struct taprio_sched *q,
-			    struct netlink_ext_ack *extack)
+			    struct taprio_sched *q)
 {
 	struct nlattr *n;
 	int err, rem;
@@ -391,17 +388,17 @@ static int parse_sched_list(struct nlattr *list,
 		struct sched_entry *entry;
 
 		if (nla_type(n) != TCA_TAPRIO_SCHED_ENTRY) {
-			NL_SET_ERR_MSG(extack, "Attribute is not of type 'entry'");
+			// NL_SET_ERR_MSG(extack, "Attribute is not of type 'entry'");
 			continue;
 		}
 
 		entry = kzalloc(sizeof(*entry), GFP_KERNEL);
 		if (!entry) {
-			NL_SET_ERR_MSG(extack, "Not enough memory for entry");
+			// NL_SET_ERR_MSG(extack, "Not enough memory for entry");
 			return -ENOMEM;
 		}
 
-		err = parse_sched_entry(n, entry, i, extack);
+		err = parse_sched_entry(n, entry, i);
 		if (err < 0) {
 			kfree(entry);
 			return err;
@@ -417,8 +414,7 @@ static int parse_sched_list(struct nlattr *list,
 }
 
 /* Returns the number of entries in case of success */
-static int parse_taprio_opt(struct nlattr **tb, struct taprio_sched *q,
-			    struct netlink_ext_ack *extack)
+static int parse_taprio_opt(struct nlattr **tb, struct taprio_sched *q)
 {
 	int err = 0;
 	int clockid;
@@ -451,16 +447,16 @@ static int parse_taprio_opt(struct nlattr **tb, struct taprio_sched *q,
 
 	if (tb[TCA_TAPRIO_ATTR_SCHED_ENTRY_LIST])
 		err = parse_sched_list(
-			tb[TCA_TAPRIO_ATTR_SCHED_ENTRY_LIST], q, extack);
+			tb[TCA_TAPRIO_ATTR_SCHED_ENTRY_LIST], q);
 	else if (tb[TCA_TAPRIO_ATTR_SCHED_SINGLE_ENTRY])
 		err = parse_sched_single_entry(
-			tb[TCA_TAPRIO_ATTR_SCHED_SINGLE_ENTRY], q, extack);
+			tb[TCA_TAPRIO_ATTR_SCHED_SINGLE_ENTRY], q);
 
 	/* parse_sched_* return the number of entries in the schedule,
 	 * a schedule with zero entries is an error.
 	 */
 	if (err == 0) {
-		NL_SET_ERR_MSG(extack, "The schedule should contain at least one entry");
+		// NL_SET_ERR_MSG(extack, "The schedule should contain at least one entry");
 		return -EINVAL;
 	}
 
@@ -468,32 +464,31 @@ static int parse_taprio_opt(struct nlattr **tb, struct taprio_sched *q,
 }
 
 static int taprio_parse_mqprio_opt(struct net_device *dev,
-				   struct tc_mqprio_qopt *qopt,
-				   struct netlink_ext_ack *extack)
+				   struct tc_mqprio_qopt *qopt)
 {
 	int i, j;
 
 	if (!qopt) {
-		NL_SET_ERR_MSG(extack, "'mqprio' configuration is necessary");
+		// NL_SET_ERR_MSG(extack, "'mqprio' configuration is necessary");
 		return -EINVAL;
 	}
 
 	/* Verify num_tc is not out of max range */
 	if (qopt->num_tc > TC_MAX_QUEUE) {
-		NL_SET_ERR_MSG(extack, "Number of traffic classes is outside valid range");
+		// NL_SET_ERR_MSG(extack, "Number of traffic classes is outside valid range");
 		return -EINVAL;
 	}
 
 	/* taprio imposes that traffic classes map 1:n to tx queues */
 	if (qopt->num_tc > dev->num_tx_queues) {
-		NL_SET_ERR_MSG(extack, "Number of traffic classes is greater than number of HW queues");
+		// NL_SET_ERR_MSG(extack, "Number of traffic classes is greater than number of HW queues");
 		return -EINVAL;
 	}
 
 	/* Verify priority mapping uses valid tcs */
 	for (i = 0; i < TC_BITMASK + 1; i++) {
 		if (qopt->prio_tc_map[i] >= qopt->num_tc) {
-			NL_SET_ERR_MSG(extack, "Invalid traffic class in priority to traffic class mapping");
+			// NL_SET_ERR_MSG(extack, "Invalid traffic class in priority to traffic class mapping");
 			return -EINVAL;
 		}
 	}
@@ -507,14 +502,14 @@ static int taprio_parse_mqprio_opt(struct net_device *dev,
 		if (qopt->offset[i] >= dev->num_tx_queues ||
 		    !qopt->count[i] ||
 		    last > dev->real_num_tx_queues) {
-			NL_SET_ERR_MSG(extack, "Invalid queue in traffic class to queue mapping");
+			// NL_SET_ERR_MSG(extack, "Invalid queue in traffic class to queue mapping");
 			return -EINVAL;
 		}
 
 		/* Verify that the offset and counts do not overlap */
 		for (j = i + 1; j < qopt->num_tc; j++) {
 			if (last > qopt->offset[j]) {
-				NL_SET_ERR_MSG(extack, "Detected overlap in the traffic class to queue mapping");
+				// NL_SET_ERR_MSG(extack, "Detected overlap in the traffic class to queue mapping");
 				return -EINVAL;
 			}
 		}
@@ -531,14 +526,14 @@ static ktime_t taprio_get_start_time(struct Qdisc *sch)
 	s64 n;
 
 	base = ns_to_ktime(q->base_time);
-	cycle = 0;
+	cycle.tv64 = 0;
 
 	/* Calculate the cycle_time, by summing all the intervals.
 	 */
 	list_for_each_entry(entry, &q->entries, list)
 		cycle = ktime_add_ns(cycle, entry->interval);
 
-	if (!cycle)
+	if (cycle.tv64 == 0)
 		return base;
 
 	now = q->get_time();
@@ -549,9 +544,9 @@ static ktime_t taprio_get_start_time(struct Qdisc *sch)
 	/* Schedule the start time for the beginning of the next
 	 * cycle.
 	 */
-	n = div64_s64(ktime_sub_ns(now, base), cycle);
+	n = div64_s64(ktime_sub_ns(now, base.tv64).tv64, cycle.tv64);
 
-	return ktime_add_ns(base, (n + 1) * cycle);
+	return ktime_add_ns(base, (n + 1) * cycle.tv64);
 }
 
 static void taprio_start_sched(struct Qdisc *sch, ktime_t start)
@@ -575,8 +570,7 @@ static void taprio_start_sched(struct Qdisc *sch, ktime_t start)
 	hrtimer_start(&q->advance_timer, start, HRTIMER_MODE_ABS);
 }
 
-static int taprio_change(struct Qdisc *sch, struct nlattr *opt,
-			 struct netlink_ext_ack *extack)
+static int taprio_change(struct Qdisc *sch, struct nlattr *opt)
 {
 	struct nlattr *tb[TCA_TAPRIO_ATTR_MAX + 1] = { };
 	struct taprio_sched *q = qdisc_priv(sch);
@@ -588,7 +582,7 @@ static int taprio_change(struct Qdisc *sch, struct nlattr *opt,
 	ktime_t start;
 
 	err = nla_parse_nested(tb, TCA_TAPRIO_ATTR_MAX, opt,
-			       taprio_policy, extack);
+			       taprio_policy);
 	if (err < 0)
 		return err;
 
@@ -596,12 +590,12 @@ static int taprio_change(struct Qdisc *sch, struct nlattr *opt,
 	if (tb[TCA_TAPRIO_ATTR_PRIOMAP])
 		mqprio = nla_data(tb[TCA_TAPRIO_ATTR_PRIOMAP]);
 
-	err = taprio_parse_mqprio_opt(dev, mqprio, extack);
+	err = taprio_parse_mqprio_opt(dev, mqprio);
 	if (err < 0)
 		return err;
 
 	/* A schedule with less than one entry is an error */
-	size = parse_taprio_opt(tb, q, extack);
+	size = parse_taprio_opt(tb, q);
 	if (size < 0)
 		return size;
 
@@ -633,13 +627,12 @@ static int taprio_change(struct Qdisc *sch, struct nlattr *opt,
 		qdisc = qdisc_create_dflt(dev_queue,
 					  &pfifo_qdisc_ops,
 					  TC_H_MAKE(TC_H_MAJ(sch->handle),
-						    TC_H_MIN(i + 1)),
-					  extack);
+						    TC_H_MIN(i + 1)));
 		if (!qdisc)
 			return -ENOMEM;
 
 		if (i < dev->real_num_tx_queues)
-			qdisc_hash_add(qdisc, false);
+			qdisc_hash_add(qdisc);
 
 		q->qdiscs[i] = qdisc;
 	}
@@ -666,7 +659,7 @@ static int taprio_change(struct Qdisc *sch, struct nlattr *opt,
 				      link_speed * 1000 * 1000);
 
 	start = taprio_get_start_time(sch);
-	if (!start)
+	if (start.tv64 == 0)
 		return 0;
 
 	taprio_start_sched(sch, start);
@@ -685,7 +678,7 @@ static void taprio_destroy(struct Qdisc *sch)
 
 	if (q->qdiscs) {
 		for (i = 0; i < dev->num_tx_queues && q->qdiscs[i]; i++)
-			qdisc_put(q->qdiscs[i]);
+			qdisc_destroy(q->qdiscs[i]);
 
 		kfree(q->qdiscs);
 	}
@@ -699,8 +692,7 @@ static void taprio_destroy(struct Qdisc *sch)
 	}
 }
 
-static int taprio_init(struct Qdisc *sch, struct nlattr *opt,
-		       struct netlink_ext_ack *extack)
+static int taprio_init(struct Qdisc *sch, struct nlattr *opt)
 {
 	struct taprio_sched *q = qdisc_priv(sch);
 	struct net_device *dev = qdisc_dev(sch);
@@ -735,7 +727,7 @@ static int taprio_init(struct Qdisc *sch, struct nlattr *opt,
 	if (!opt)
 		return -EINVAL;
 
-	return taprio_change(sch, opt, extack);
+	return taprio_change(sch, opt);
 }
 
 static struct netdev_queue *taprio_queue_get(struct Qdisc *sch,
@@ -751,8 +743,7 @@ static struct netdev_queue *taprio_queue_get(struct Qdisc *sch,
 }
 
 static int taprio_graft(struct Qdisc *sch, unsigned long cl,
-			struct Qdisc *new, struct Qdisc **old,
-			struct netlink_ext_ack *extack)
+			struct Qdisc *new, struct Qdisc **old)
 {
 	struct taprio_sched *q = qdisc_priv(sch);
 	struct net_device *dev = qdisc_dev(sch);
@@ -865,13 +856,17 @@ static struct Qdisc *taprio_leaf(struct Qdisc *sch, unsigned long cl)
 	return dev_queue->qdisc_sleeping;
 }
 
-static unsigned long taprio_find(struct Qdisc *sch, u32 classid)
+static unsigned long taprio_get(struct Qdisc *sch, u32 classid)
 {
 	unsigned int ntx = TC_H_MIN(classid);
 
 	if (!taprio_queue_get(sch, ntx))
 		return 0;
 	return ntx;
+}
+
+static void taprio_put(struct Qdisc *sch, unsigned long cl)
+{
 }
 
 static int taprio_dump_class(struct Qdisc *sch, unsigned long cl,
@@ -927,7 +922,8 @@ static struct netdev_queue *taprio_select_queue(struct Qdisc *sch,
 static const struct Qdisc_class_ops taprio_class_ops = {
 	.graft		= taprio_graft,
 	.leaf		= taprio_leaf,
-	.find		= taprio_find,
+	.get		= taprio_get,
+	.put		= taprio_put,
 	.walk		= taprio_walk,
 	.dump		= taprio_dump_class,
 	.dump_stats	= taprio_dump_class_stats,

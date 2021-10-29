@@ -68,6 +68,7 @@
 #define BYTES_PER_KBIT (1000LL / 8)
 
 struct cbs_sched_data {
+	int queue;
 	s64 port_rate; /* in bytes/s */
 	s64 last; /* timestamp in ns */
 	s64 credits; /* in bytes */
@@ -82,12 +83,20 @@ struct cbs_sched_data {
 	struct Qdisc *qdisc;
 };
 
-static int cbs_enqueue_soft(struct sk_buff *skb, struct Qdisc *sch)
+static int cbs_child_enqueue(struct sk_buff *skb, struct Qdisc *sch,
+			     struct Qdisc *child,
+			     struct sk_buff **to_free)
 {
-	struct cbs_sched_data *q = qdisc_priv(sch);
-	struct Qdisc *qdisc = q->qdisc;
+	int err;
 
-	return cbs_child_enqueue(skb, sch, qdisc, to_free);
+	err = child->ops->enqueue(skb, child, to_free);
+	if (err != NET_XMIT_SUCCESS)
+		return err;
+
+	qdisc_qstats_backlog_inc(sch, skb);
+	sch->q.qlen++;
+
+	return NET_XMIT_SUCCESS;
 }
 
 static int cbs_enqueue_soft(struct sk_buff *skb, struct Qdisc *sch,
@@ -250,9 +259,24 @@ static int cbs_change(struct Qdisc *sch, struct nlattr *opt)
 static int cbs_init(struct Qdisc *sch, struct nlattr *opt)
 {
 	struct cbs_sched_data *q = qdisc_priv(sch);
+	struct net_device *dev = qdisc_dev(sch);
 
-	if (!opt)
+	if (!opt) {
+		// NL_SET_ERR_MSG(null, "Missing CBS qdisc options which are mandatory");
 		return -EINVAL;
+	}
+
+	q->qdisc = qdisc_create_dflt(sch->dev_queue, &pfifo_qdisc_ops, sch->handle);
+
+	if (!q->qdisc)
+		return -ENOMEM;
+
+	// qdisc_hash_add(q->qdisc, false);
+
+	q->queue = sch->dev_queue - netdev_get_tx_queue(dev, 0);
+
+	q->enqueue = cbs_enqueue_soft;
+	q->dequeue = cbs_dequeue_soft;
 
 	qdisc_watchdog_init(&q->watchdog, sch);
 
@@ -264,6 +288,11 @@ static void cbs_destroy(struct Qdisc *sch)
 	struct cbs_sched_data *q = qdisc_priv(sch);
 
 	qdisc_watchdog_cancel(&q->watchdog);
+
+	// cbs_disable_offload(dev, q);
+
+	if (q->qdisc)
+		qdisc_destroy(q->qdisc);
 }
 
 static int cbs_dump(struct Qdisc *sch, struct sk_buff *skb)
@@ -307,13 +336,13 @@ static int cbs_dump_class(struct Qdisc *sch, unsigned long cl,
 }
 
 static int cbs_graft(struct Qdisc *sch, unsigned long arg, struct Qdisc *new,
-		     struct Qdisc **old, struct netlink_ext_ack *extack)
+		     struct Qdisc **old)
 {
 	struct cbs_sched_data *q = qdisc_priv(sch);
 
 	if (!new) {
 		new = qdisc_create_dflt(sch->dev_queue, &pfifo_qdisc_ops,
-					sch->handle, NULL);
+					sch->handle);
 		if (!new)
 			new = &noop_qdisc;
 	}
@@ -329,9 +358,13 @@ static struct Qdisc *cbs_leaf(struct Qdisc *sch, unsigned long arg)
 	return q->qdisc;
 }
 
-static unsigned long cbs_find(struct Qdisc *sch, u32 classid)
+static unsigned long cbs_get(struct Qdisc *sch, u32 classid)
 {
 	return 1;
+}
+
+static void cbs_put(struct Qdisc *sch, unsigned long cl)
+{
 }
 
 static void cbs_walk(struct Qdisc *sch, struct qdisc_walker *walker)
@@ -350,7 +383,8 @@ static void cbs_walk(struct Qdisc *sch, struct qdisc_walker *walker)
 static const struct Qdisc_class_ops cbs_class_ops = {
 	.graft		=	cbs_graft,
 	.leaf		=	cbs_leaf,
-	.find		=	cbs_find,
+	.get		=	cbs_get,
+	.put		=	cbs_put,
 	.walk		=	cbs_walk,
 	.dump		=	cbs_dump_class,
 };

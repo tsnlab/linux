@@ -632,7 +632,7 @@ static int taprio_change(struct Qdisc *sch, struct nlattr *opt)
 			return -ENOMEM;
 
 		if (i < dev->real_num_tx_queues)
-			qdisc_hash_add(qdisc);
+			qdisc_hash_add(qdisc, false);
 
 		q->qdiscs[i] = qdisc;
 	}

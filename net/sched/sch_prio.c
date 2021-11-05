@@ -241,7 +241,7 @@ static int prio_graft(struct Qdisc *sch, unsigned long arg, struct Qdisc *new,
 		if (!new)
 			new = &noop_qdisc;
 		else
-			qdisc_hash_add(new);
+			qdisc_hash_add(new, false);
 	}
 
 	*old = qdisc_replace(sch, new, &q->queues[band]);

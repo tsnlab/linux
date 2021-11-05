@@ -417,7 +417,7 @@ static int cbs_init(struct Qdisc *sch, struct nlattr *opt)
 	list_add(&q->cbs_list, &cbs_list);
 	spin_unlock(&cbs_list_lock);
 
-	qdisc_hash_add(q->qdisc);
+	qdisc_hash_add(q->qdisc, false);
 
 	q->queue = sch->dev_queue - netdev_get_tx_queue(dev, 0);
 

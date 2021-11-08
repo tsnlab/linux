@@ -198,7 +198,8 @@ static struct netdev_queue *mqprio_queue_get(struct Qdisc *sch,
 					     unsigned long cl)
 {
 	struct net_device *dev = qdisc_dev(sch);
-	unsigned long ntx = cl - 1 - netdev_get_num_tc(dev);
+	// unsigned long ntx = cl - 1 - netdev_get_num_tc(dev);
+	unsigned long ntx = cl - 1;
 
 	if (ntx >= dev->num_tx_queues)
 		return NULL;
